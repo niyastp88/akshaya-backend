@@ -7,6 +7,8 @@ import serviceRoutes from "./routes/serviceRoutes.js";
 import transactionRoutes from "./routes/transactionRoutes.js";
 import balanceRoutes from "./routes/balanceRoutes.js";
 import reportRoutes from "./routes/reportRoutes.js";
+import authRoutes from "./routes/authRoutes.js";
+import userRoutes from "./routes/userRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -20,6 +22,8 @@ app.use("/api/services", serviceRoutes);
 app.use("/api/transactions", transactionRoutes);
 app.use("/api/balance", balanceRoutes);
 app.use("/api/reports", reportRoutes);
+app.use("/api/auth", authRoutes);
+app.use("/api/users", userRoutes);
 
 const PORT = process.env.PORT || 5000;
 

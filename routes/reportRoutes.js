@@ -4,67 +4,57 @@ import Balance from "../models/Balance.js";
 
 const router = express.Router();
 
-// GET REPORT
 router.get("/", async (req, res) => {
-  const { date } = req.query;
+  const { from, to } = req.query;
 
-  let filter = {};
+  const start = new Date(from);
+  const end = new Date(to);
+  end.setDate(end.getDate() + 1);
 
-  if (date) {
-    const start = new Date(date);
-    const end = new Date(date);
-    end.setDate(end.getDate() + 1);
+  const transactions = await Transaction.find({
+    date: { $gte: start, $lt: end },
+  });
 
-    filter.date = {
-      $gte: start,
-      $lt: end,
-    };
-  }
+  const balance = await Balance.findOne();
 
-  const transactions = await Transaction.find(filter);
+  let cash = balance?.openingCash || 0;
+  let sbiCurrent = balance?.openingSbiCurrentBank || 0;
+  let sbiSavings = balance?.openingSbiSavingsBank || 0;
+  let edistrict = balance?.openingEdistrict || 0;
+  let psa = balance?.openingPSA || 0;
 
-  const balanceData = await Balance.findOne();
-
-  let openingCash = balanceData?.openingCash || 0;
-  let openingBank = balanceData?.openingBank || 0;
-
-  // 🔥 Grouping
-  const grouped = {};
+  const result = [];
 
   transactions.forEach((t) => {
-    if (!grouped[t.serviceName]) {
-      grouped[t.serviceName] = {
-        cash: 0,
-        bank: 0,
-      };
-    }
+    const date = t.date.toISOString().split("T")[0];
 
-    grouped[t.serviceName].cash += t.cashAmount;
-    grouped[t.serviceName].bank += t.bankAmount;
+    // ✅ IN & OUT
+    const inAmount = t.cashAmount+t.bankAmount;
+    const outAmount = 0;
+
+    // ✅ balances
+    cash += t.cashAmount+t.bankAmount;
+    sbiCurrent -= t.bankAmount;
+
+    edistrict -= t.edistrictAmount;
+    psa -= t.psaAmount;
+
+    result.push({
+      date,
+      serviceName: t.serviceName,
+
+      in: inAmount,
+      out: outAmount,
+
+      cashBalance: cash,
+      sbiCurrent,
+      sbiSavings,
+      edistrict,
+      psa,
+    });
   });
 
-  // 🔥 Running balance
-  let cashBalance = openingCash;
-  let bankBalance = openingBank;
-
-  const result = Object.entries(grouped).map(([service, data]) => {
-    cashBalance += data.cash;
-    bankBalance -= data.bank;
-
-    return {
-      serviceName: service,
-      cashIn: data.cash,
-      bankDebit: data.bank,
-      cashBalance,
-      bankBalance,
-    };
-  });
-
-  res.json({
-    openingCash,
-    openingBank,
-    data: result,
-  });
+  res.json({ data: result });
 });
 
 export default router;

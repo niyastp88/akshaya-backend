@@ -2,8 +2,22 @@ import mongoose from "mongoose";
 
 const serviceSchema = new mongoose.Schema({
   name: String,
-  hasBank: Boolean,
+
   hasCash: Boolean,
+  hasBank: Boolean,
+
+  hasEdistrict: Boolean,
+  hasPsa: Boolean,
+
+  edistrictCharge: {
+    type: Number,
+    default: 0,
+  },
+
+  psaCharge: {
+    type: Number,
+    default: 0,
+  },
 });
 
 export default mongoose.model("Service", serviceSchema);
