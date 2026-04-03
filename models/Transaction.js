@@ -16,6 +16,12 @@ const transactionSchema = new mongoose.Schema({
     default: 0,
   },
 
+  // 🔥 ADD THIS
+  staffId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+
   staffName: String,
 
   date: {

@@ -21,4 +21,9 @@ router.post("/", protect, adminOnly, async (req, res) => {
   res.json(user);
 });
 
+router.get("/", protect, adminOnly, async (req, res) => {
+  const users = await User.find({ role: "staff" });
+  res.json(users);
+});
+
 export default router;
