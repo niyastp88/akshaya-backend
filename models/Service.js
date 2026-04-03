@@ -8,6 +8,7 @@ const serviceSchema = new mongoose.Schema({
 
   hasEdistrict: Boolean,
   hasPsa: Boolean,
+  hasBill:Boolean,
 
   edistrictCharge: {
     type: Number,

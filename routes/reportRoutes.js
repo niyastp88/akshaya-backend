@@ -23,29 +23,46 @@ router.get("/", async (req, res) => {
   let edistrict = balance?.openingEdistrict || 0;
   let psa = balance?.openingPSA || 0;
 
-  const result = [];
+  // 🔥 GROUPING OBJECT
+  const grouped = {};
 
   transactions.forEach((t) => {
     const date = t.date.toISOString().split("T")[0];
+    const key = `${date}-${t.serviceName}`;
 
-    // ✅ IN & OUT
-    const inAmount = t.cashAmount+t.bankAmount;
-    const outAmount = 0;
+    if (!grouped[key]) {
+      grouped[key] = {
+        date,
+        serviceName: t.serviceName,
+        cashAmount: 0,
+        bankAmount: 0,
+        edistrictAmount: 0,
+        psaAmount: 0,
+      };
+    }
 
-    // ✅ balances
-    cash += t.cashAmount+t.bankAmount;
-    sbiCurrent -= t.bankAmount;
+    grouped[key].cashAmount += t.cashAmount || 0;
+    grouped[key].bankAmount += t.bankAmount || 0;
+    grouped[key].edistrictAmount += t.edistrictAmount || 0;
+    grouped[key].psaAmount += t.psaAmount || 0;
+  });
 
-    edistrict -= t.edistrictAmount;
-    psa -= t.psaAmount;
+  const result = [];
+
+  Object.values(grouped).forEach((g) => {
+    const inAmount = g.cashAmount + g.bankAmount;
+
+    // balances update
+    cash += inAmount;
+    sbiCurrent -= g.bankAmount;
+    edistrict -= g.edistrictAmount;
+    psa -= g.psaAmount;
 
     result.push({
-      date,
-      serviceName: t.serviceName,
-
+      date: g.date,
+      serviceName: g.serviceName,
       in: inAmount,
-      out: outAmount,
-
+      out: 0,
       cashBalance: cash,
       sbiCurrent,
       sbiSavings,
