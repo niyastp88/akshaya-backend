@@ -1,6 +1,8 @@
 import express from "express";
 import Transaction from "../models/Transaction.js";
 import Balance from "../models/Balance.js";
+import ExpenseTx from "../models/ExpenseTx.js";
+import BalanceTx from "../models/BalanceTx.js";
 
 const router = express.Router();
 
@@ -11,64 +13,195 @@ router.get("/", async (req, res) => {
   const end = new Date(to);
   end.setDate(end.getDate() + 1);
 
+  // 🔥 FETCH ALL
   const transactions = await Transaction.find({
+    date: { $gte: start, $lt: end },
+  });
+
+  const expenses = await ExpenseTx.find({
+    date: { $gte: start, $lt: end },
+  });
+
+  const balances = await BalanceTx.find({
     date: { $gte: start, $lt: end },
   });
 
   const balance = await Balance.findOne();
 
+  // 🔥 OPENING
   let cash = balance?.openingCash || 0;
   let sbiCurrent = balance?.openingSbiCurrentBank || 0;
   let sbiSavings = balance?.openingSbiSavingsBank || 0;
   let edistrict = balance?.openingEdistrict || 0;
   let psa = balance?.openingPSA || 0;
 
-  // 🔥 GROUPING OBJECT
-  const grouped = {};
-
-  transactions.forEach((t) => {
-    const date = t.date.toISOString().split("T")[0];
-    const key = `${date}-${t.serviceName}`;
-
-    if (!grouped[key]) {
-      grouped[key] = {
-        date,
-        serviceName: t.serviceName,
-        cashAmount: 0,
-        bankAmount: 0,
-        edistrictAmount: 0,
-        psaAmount: 0,
-      };
-    }
-
-    grouped[key].cashAmount += t.cashAmount || 0;
-    grouped[key].bankAmount += t.bankAmount || 0;
-    grouped[key].edistrictAmount += t.edistrictAmount || 0;
-    grouped[key].psaAmount += t.psaAmount || 0;
-  });
-
   const result = [];
 
-  Object.values(grouped).forEach((g) => {
-    const inAmount = g.cashAmount + g.bankAmount;
+  // =====================================
+  // 🔥 MERGE ALL (IMPORTANT FIX)
+  // =====================================
 
-    // balances update
-    cash += inAmount;
-    sbiCurrent -= g.bankAmount;
-    edistrict -= g.edistrictAmount;
-    psa -= g.psaAmount;
+  const all = [
+    ...transactions.map((t) => ({
+      ...t.toObject(),
+      category: "tx",
+    })),
 
-    result.push({
-      date: g.date,
-      serviceName: g.serviceName,
-      in: inAmount,
-      out: 0,
-      cashBalance: cash,
-      sbiCurrent,
-      sbiSavings,
-      edistrict,
-      psa,
-    });
+    ...expenses.map((e) => ({
+      ...e.toObject(),
+      category: "expense",
+    })),
+
+    ...balances.map((b) => ({
+      ...b.toObject(),
+      category: "balance", // 🔥 FIX (type overwrite illa)
+    })),
+  ];
+
+  // =====================================
+  // 🔥 SORT (CORRECT ORDER FIX)
+  // =====================================
+
+  all.sort((a, b) => {
+    const d1 = new Date(a.date);
+    const d2 = new Date(b.date);
+
+    if (d1.getTime() === d2.getTime()) {
+      return a._id.toString().localeCompare(b._id.toString());
+    }
+
+    return d1 - d2;
+  });
+
+  // =====================================
+  // 🔥 LOOP
+  // =====================================
+
+  all.forEach((item) => {
+    const date = item.date.toISOString().split("T")[0];
+
+    // =========================
+    // 🔥 TRANSACTION
+    // =========================
+    if (item.category === "tx") {
+      const inAmount =
+        (item.cashAmount || 0) + (item.bankAmount || 0);
+
+      cash += inAmount;
+      sbiCurrent -= item.bankAmount || 0;
+      edistrict -= item.edistrictAmount || 0;
+      psa -= item.psaAmount || 0;
+
+      result.push({
+        date,
+        serviceName: item.serviceName,
+        in: inAmount,
+        out: 0,
+        cashBalance: cash,
+        sbiCurrent,
+        sbiSavings,
+        edistrict,
+        psa,
+      });
+    }
+
+    // =========================
+    // 🔥 EXPENSE
+    // =========================
+    else if (item.category === "expense") {
+      cash -= item.amount;
+
+      result.push({
+        date,
+        serviceName: item.expenseName,
+        in: 0,
+        out: item.amount,
+        cashBalance: cash,
+        sbiCurrent,
+        sbiSavings,
+        edistrict,
+        psa,
+      });
+    }
+
+    // =========================
+    // 🔥 BALANCE TX (MAIN FIX)
+    // =========================
+    else if (item.category === "balance") {
+      const type = item.type; // 🔥 actual DB value
+
+      // 🔹 SBI CURRENT
+      if (type === "SBI Current Account") {
+        cash -= item.amount;
+        sbiCurrent += item.amount;
+
+        result.push({
+          date,
+          serviceName: "Deposit to SBI Current",
+          in: 0,
+          out: item.amount,
+          cashBalance: cash,
+          sbiCurrent,
+          sbiSavings,
+          edistrict,
+          psa,
+        });
+      }
+
+      // 🔹 SBI SAVINGS
+      else if (type === "SBI Savings Account") {
+        cash -= item.amount;
+        sbiSavings += item.amount;
+
+        result.push({
+          date,
+          serviceName: "Deposit to SBI Savings",
+          in: 0,
+          out: item.amount,
+          cashBalance: cash,
+          sbiCurrent,
+          sbiSavings,
+          edistrict,
+          psa,
+        });
+      }
+
+      // 🔹 EDISTRICT
+      else if (type === "Edistrict") {
+        sbiCurrent -= item.amount;
+        edistrict += item.amount;
+
+        result.push({
+          date,
+          serviceName: "Edistrict Load",
+          in: 0,
+          out: 0,
+          cashBalance: cash,
+          sbiCurrent,
+          sbiSavings,
+          edistrict,
+          psa,
+        });
+      }
+
+      // 🔹 PSA
+      else if (type === "PSA") {
+        sbiCurrent -= item.amount;
+        psa += item.amount;
+
+        result.push({
+          date,
+          serviceName: "PSA Load",
+          in: 0,
+          out: 0,
+          cashBalance: cash,
+          sbiCurrent,
+          sbiSavings,
+          edistrict,
+          psa,
+        });
+      }
+    }
   });
 
   res.json({ data: result });
