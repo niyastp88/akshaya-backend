@@ -13,6 +13,7 @@ router.get("/", async (req, res) => {
   const end = new Date(to);
   end.setDate(end.getDate() + 1);
 
+  // 🔥 FETCH ALL
   const transactions = await Transaction.find({
     date: { $gte: start, $lt: end },
   });
@@ -27,6 +28,7 @@ router.get("/", async (req, res) => {
 
   const balance = await Balance.findOne();
 
+  // 🔥 OPENING BALANCE
   let cash = balance?.openingCash || 0;
   let sbiCurrent = balance?.openingSbiCurrentBank || 0;
   let sbiSavings = balance?.openingSbiSavingsBank || 0;
@@ -40,6 +42,9 @@ router.get("/", async (req, res) => {
   let totalGpay = 0;
   let totalProfit = 0;
 
+  // =====================================
+  // 🔥 MERGE ALL DATA
+  // =====================================
   const all = [
     ...transactions.map((t) => ({
       ...t.toObject(),
@@ -55,6 +60,9 @@ router.get("/", async (req, res) => {
     })),
   ];
 
+  // =====================================
+  // 🔥 SORT (IMPORTANT)
+  // =====================================
   all.sort((a, b) => {
     const d1 = new Date(a.date);
     const d2 = new Date(b.date);
@@ -66,6 +74,9 @@ router.get("/", async (req, res) => {
     return d1 - d2;
   });
 
+  // =====================================
+  // 🔥 LOOP
+  // =====================================
   all.forEach((item) => {
     const date = item.date.toISOString().split("T")[0];
 
@@ -81,37 +92,10 @@ router.get("/", async (req, res) => {
       edistrict -= item.edistrictAmount || 0;
       psa -= item.psaAmount || 0;
 
-      // 🔥 TOTAL CASH / GPAY
+      // 🔥 TOTALS
       totalCash += item.splitCash || 0;
       totalGpay += item.gpayAmount || 0;
-
-      // 🔥 PROFIT LOGIC
-      let profit = 0;
-      const c = item.cashAmount || 0;
-
-      if (item.psaAmount > 0) {
-        profit = c - 109;
-      }
-
-      else if (item.edistrictAmount > 0 && item.bankAmount === 0) {
-        profit = c - 7;
-      }
-
-      else if (item.edistrictAmount > 0 && item.bankAmount > 0) {
-        if (c <= 1000) profit = 15;
-        else if (c <= 2000) profit = 25;
-        else profit = 35;
-      }
-
-      else if (item.cashAmount > 0 && item.bankAmount > 0) {
-        profit = c;
-      }
-
-      else if (item.cashAmount > 0) {
-        profit = c;
-      }
-
-      totalProfit += profit;
+      totalProfit += item.profit || 0;
 
       result.push({
         date,
@@ -151,6 +135,7 @@ router.get("/", async (req, res) => {
     else if (item.category === "balance") {
       const type = item.type;
 
+      // 🔹 SBI CURRENT
       if (type === "SBI Current Account") {
         cash -= item.amount;
         sbiCurrent += item.amount;
@@ -168,6 +153,7 @@ router.get("/", async (req, res) => {
         });
       }
 
+      // 🔹 SBI SAVINGS
       else if (type === "SBI Savings Account") {
         cash -= item.amount;
         sbiSavings += item.amount;
@@ -185,6 +171,7 @@ router.get("/", async (req, res) => {
         });
       }
 
+      // 🔹 EDISTRICT
       else if (type === "Edistrict") {
         sbiCurrent -= item.amount;
         edistrict += item.amount;
@@ -202,6 +189,7 @@ router.get("/", async (req, res) => {
         });
       }
 
+      // 🔹 PSA
       else if (type === "PSA") {
         sbiCurrent -= item.amount;
         psa += item.amount;
@@ -221,12 +209,15 @@ router.get("/", async (req, res) => {
     }
   });
 
+  // =====================================
+  // 🔥 FINAL RESPONSE
+  // =====================================
   res.json({
     data: result,
     totals: {
       cash: totalCash,
       gpay: totalGpay,
-      profit:0
+      profit: totalProfit,
     },
   });
 });

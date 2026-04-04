@@ -38,6 +38,10 @@ const transactionSchema = new mongoose.Schema({
   },
 
   staffName: String,
+  profit: {
+  type: Number,
+  default: 0,
+},
 
   date: {
     type: Date,
