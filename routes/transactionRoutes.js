@@ -6,7 +6,14 @@ import { protect, adminOnly } from "../middleware/authMiddleware.js";
 const router = express.Router();
 
 router.post("/", protect, async (req, res) => {
-  const { serviceId, cashAmount, bankAmount } = req.body;
+  const {
+    serviceId,
+    cashAmount,
+    bankAmount,
+    paymentType,
+    splitCash,
+    gpayAmount,
+  } = req.body;
 
   const service = await Service.findById(serviceId);
 
@@ -40,12 +47,18 @@ router.post("/", protect, async (req, res) => {
 
   const transaction = await Transaction.create({
     serviceName: service.name,
+
     cashAmount: cash,
     bankAmount: Number(bankAmount) || 0,
+
+    // 🔥 SAVE THESE
+    paymentType,
+    splitCash: Number(splitCash) || 0,
+    gpayAmount: Number(gpayAmount) || 0,
+
     edistrictAmount,
     psaAmount,
 
-    // 🔥 ADD THIS (IMPORTANT)
     staffId: req.user.id,
     staffName: req.user.name,
   });

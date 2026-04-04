@@ -13,7 +13,6 @@ router.get("/", async (req, res) => {
   const end = new Date(to);
   end.setDate(end.getDate() + 1);
 
-  // 🔥 FETCH ALL
   const transactions = await Transaction.find({
     date: { $gte: start, $lt: end },
   });
@@ -28,7 +27,6 @@ router.get("/", async (req, res) => {
 
   const balance = await Balance.findOne();
 
-  // 🔥 OPENING
   let cash = balance?.openingCash || 0;
   let sbiCurrent = balance?.openingSbiCurrentBank || 0;
   let sbiSavings = balance?.openingSbiSavingsBank || 0;
@@ -37,30 +35,25 @@ router.get("/", async (req, res) => {
 
   const result = [];
 
-  // =====================================
-  // 🔥 MERGE ALL (IMPORTANT FIX)
-  // =====================================
+  // 🔥 TOTALS
+  let totalCash = 0;
+  let totalGpay = 0;
+  let totalProfit = 0;
 
   const all = [
     ...transactions.map((t) => ({
       ...t.toObject(),
       category: "tx",
     })),
-
     ...expenses.map((e) => ({
       ...e.toObject(),
       category: "expense",
     })),
-
     ...balances.map((b) => ({
       ...b.toObject(),
-      category: "balance", // 🔥 FIX (type overwrite illa)
+      category: "balance",
     })),
   ];
-
-  // =====================================
-  // 🔥 SORT (CORRECT ORDER FIX)
-  // =====================================
 
   all.sort((a, b) => {
     const d1 = new Date(a.date);
@@ -72,10 +65,6 @@ router.get("/", async (req, res) => {
 
     return d1 - d2;
   });
-
-  // =====================================
-  // 🔥 LOOP
-  // =====================================
 
   all.forEach((item) => {
     const date = item.date.toISOString().split("T")[0];
@@ -91,6 +80,38 @@ router.get("/", async (req, res) => {
       sbiCurrent -= item.bankAmount || 0;
       edistrict -= item.edistrictAmount || 0;
       psa -= item.psaAmount || 0;
+
+      // 🔥 TOTAL CASH / GPAY
+      totalCash += item.splitCash || 0;
+      totalGpay += item.gpayAmount || 0;
+
+      // 🔥 PROFIT LOGIC
+      let profit = 0;
+      const c = item.cashAmount || 0;
+
+      if (item.psaAmount > 0) {
+        profit = c - 109;
+      }
+
+      else if (item.edistrictAmount > 0 && item.bankAmount === 0) {
+        profit = c - 7;
+      }
+
+      else if (item.edistrictAmount > 0 && item.bankAmount > 0) {
+        if (c <= 1000) profit = 15;
+        else if (c <= 2000) profit = 25;
+        else profit = 35;
+      }
+
+      else if (item.cashAmount > 0 && item.bankAmount > 0) {
+        profit = c;
+      }
+
+      else if (item.cashAmount > 0) {
+        profit = c;
+      }
+
+      totalProfit += profit;
 
       result.push({
         date,
@@ -125,12 +146,11 @@ router.get("/", async (req, res) => {
     }
 
     // =========================
-    // 🔥 BALANCE TX (MAIN FIX)
+    // 🔥 BALANCE
     // =========================
     else if (item.category === "balance") {
-      const type = item.type; // 🔥 actual DB value
+      const type = item.type;
 
-      // 🔹 SBI CURRENT
       if (type === "SBI Current Account") {
         cash -= item.amount;
         sbiCurrent += item.amount;
@@ -148,7 +168,6 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // 🔹 SBI SAVINGS
       else if (type === "SBI Savings Account") {
         cash -= item.amount;
         sbiSavings += item.amount;
@@ -166,7 +185,6 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // 🔹 EDISTRICT
       else if (type === "Edistrict") {
         sbiCurrent -= item.amount;
         edistrict += item.amount;
@@ -184,7 +202,6 @@ router.get("/", async (req, res) => {
         });
       }
 
-      // 🔹 PSA
       else if (type === "PSA") {
         sbiCurrent -= item.amount;
         psa += item.amount;
@@ -204,7 +221,14 @@ router.get("/", async (req, res) => {
     }
   });
 
-  res.json({ data: result });
+  res.json({
+    data: result,
+    totals: {
+      cash: totalCash,
+      gpay: totalGpay,
+      profit:0
+    },
+  });
 });
 
 export default router;

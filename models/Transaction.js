@@ -6,6 +6,22 @@ const transactionSchema = new mongoose.Schema({
   cashAmount: Number,
   bankAmount: Number,
 
+  // 🔥 ADD THESE
+  paymentType: {
+    type: String,
+    enum: ["cash", "gpay", "both"],
+  },
+
+  splitCash: {
+    type: Number,
+    default: 0,
+  },
+
+  gpayAmount: {
+    type: Number,
+    default: 0,
+  },
+
   edistrictAmount: {
     type: Number,
     default: 0,
@@ -16,7 +32,6 @@ const transactionSchema = new mongoose.Schema({
     default: 0,
   },
 
-  // 🔥 ADD THIS
   staffId: {
     type: mongoose.Schema.Types.ObjectId,
     ref: "User",
