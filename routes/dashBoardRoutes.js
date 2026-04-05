@@ -1,6 +1,8 @@
 import express from "express";
 import Transaction from "../models/Transaction.js";
-
+import Balance from "../models/Balance.js";
+import ExpenseTx from "../models/ExpenseTx.js";
+import BalanceTx from "../models/BalanceTx.js";
 
 const router = express.Router();
 
@@ -8,7 +10,9 @@ router.get("/", async (req, res) => {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
-  // 🔥 TODAY DATA
+  // =====================================
+  // 🔥 TODAY TRANSACTIONS
+  // =====================================
   const tx = await Transaction.find({
     date: {
       $gte: new Date(todayStr),
@@ -27,20 +31,37 @@ router.get("/", async (req, res) => {
   });
 
   // =====================================
-  // 🔥 CALL REPORT API
+  // 🔥 REPORT DATA (ALL HISTORY)
   // =====================================
-
   const reportRes = await fetch(
-    `http://localhost:5000/api/reports?from=2020-01-01&to=${todayStr}`
+    `https://akshaya-backend.vercel.app/api/reports?from=2020-01-01&to=${todayStr}`
   );
 
   const reportData = await reportRes.json();
 
-  const last =
-    reportData.data[reportData.data.length - 1] || {};
+  // =====================================
+  // 🔥 HANDLE EMPTY REPORT (IMPORTANT FIX)
+  // =====================================
+  let last;
+
+  if (reportData.data && reportData.data.length > 0) {
+    last = reportData.data[reportData.data.length - 1];
+  } else {
+    // 🔥 fallback to opening balance
+    const balance = await Balance.findOne();
+
+    last = {
+      cashBalance: balance?.openingCash || 0,
+      sbiCurrent: balance?.openingSbiCurrentBank || 0,
+      sbiSavings: balance?.openingSbiSavingsBank || 0,
+      edistrict: balance?.openingEdistrict || 0,
+      psa: balance?.openingPSA || 0,
+    };
+  }
 
   // =====================================
-
+  // 🔥 FINAL RESPONSE
+  // =====================================
   res.json({
     today: {
       cash: totalCash,
