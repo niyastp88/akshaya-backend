@@ -1,10 +1,14 @@
 import express from "express";
 import Balance from "../models/Balance.js";
+import BalanceTx from "../models/BalanceTx.js";
+import { protect } from "../middleware/authMiddleware.js";
+
+
 
 const router = express.Router();
 
 // ✅ Set opening balance (all fields)
-router.post("/", async (req, res) => {
+router.post("/",protect, async (req, res) => {
   const {
     openingCash,
     openingSbiCurrentBank,
