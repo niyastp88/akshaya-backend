@@ -1,10 +1,14 @@
 import mongoose from "mongoose";
 
-const expenseTxSchema = new mongoose.Schema({
+const expenseSchema = new mongoose.Schema({
   expenseName: String,
   amount: Number,
 
-  staffId: mongoose.Schema.Types.ObjectId,
+  staffId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+
   staffName: String,
 
   date: {
@@ -13,4 +17,4 @@ const expenseTxSchema = new mongoose.Schema({
   },
 });
 
-export default mongoose.model("ExpenseTx", expenseTxSchema);
+export default mongoose.model("ExpenseTx", expenseSchema);

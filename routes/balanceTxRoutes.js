@@ -8,12 +8,14 @@ const router = express.Router();
 router.post("/", protect, async (req, res) => {
   const { type, amount } = req.body;
 
-  const tx = await BalanceTx.create({
+  const data = await BalanceTx.create({
     type,
     amount,
+    staffId: req.user.id,
+    staffName: req.user.name,
   });
 
-  res.json(tx);
+  res.json(data);
 });
 
 // 🔥 GET
@@ -21,5 +23,11 @@ router.get("/", protect, async (req, res) => {
   const data = await BalanceTx.find();
   res.json(data);
 });
+
+router.get("/all", protect, async (req, res) => {
+  const data = await BalanceTx.find().sort({ date: -1 });
+  res.json(data);
+});
+
 
 export default router;

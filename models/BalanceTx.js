@@ -1,8 +1,15 @@
 import mongoose from "mongoose";
 
 const balanceTxSchema = new mongoose.Schema({
-  type: String, // SBI Current / Savings / Edistrict / PSA
+  type: String,
   amount: Number,
+
+  staffId: {
+    type: mongoose.Schema.Types.ObjectId,
+    ref: "User",
+  },
+
+  staffName: String,
 
   date: {
     type: Date,

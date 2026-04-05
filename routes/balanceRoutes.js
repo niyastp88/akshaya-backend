@@ -36,6 +36,18 @@ router.post("/", async (req, res) => {
   res.json(balance);
 });
 
+// =========================
+// 🔥 STAFF OWN BALANCE
+// =========================
+router.get("/my", async (req, res) => {
+  const data = await BalanceTx.find({
+    staffId: req.user.id,
+  }).sort({ date: -1 });
+
+  res.json(data);
+});
+
+
 // ✅ Get balance
 router.get("/", async (req, res) => {
   const balance = await Balance.findOne();
