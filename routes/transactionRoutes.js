@@ -133,7 +133,6 @@ router.put("/:id", protect, async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
   const txDate = transaction.date.toISOString().split("T")[0];
 
-  // 🔒 STAFF restriction
   if (!isAdmin && today !== txDate) {
     return res.status(403).json({ message: "Cannot edit old data" });
   }
@@ -141,8 +140,11 @@ router.put("/:id", protect, async (req, res) => {
   // 🔥 NEW VALUES
   const cash = Number(req.body.cashAmount) || 0;
   const bank = Number(req.body.bankAmount) || 0;
+  const splitCash = Number(req.body.splitCash) || 0;
+  const gpayAmount = Number(req.body.gpayAmount) || 0;
+  const paymentType = req.body.paymentType;
 
-  // 🔥 GET SERVICE AGAIN
+  // 🔥 GET SERVICE
   const service = await Service.findOne({
     name: transaction.serviceName,
   });
@@ -152,41 +154,31 @@ router.put("/:id", protect, async (req, res) => {
   let profit = 0;
 
   if (service) {
-    // 🔥 EDISTRICT BILL
     if (service.hasEdistrict && service.hasBill) {
       if (cash <= 1000) profit = 15;
       else if (cash <= 2000) profit = 25;
       else profit = 35;
 
       edistrictAmount = cash - profit;
-    }
-
-    // 🔥 NORMAL EDISTRICT
-    else if (service.hasEdistrict) {
+    } else if (service.hasEdistrict) {
       edistrictAmount = service.edistrictCharge || 0;
       profit = cash - 7;
-    }
-
-    // 🔥 PSA
-    else if (service.hasPsa) {
+    } else if (service.hasPsa) {
       psaAmount = service.psaCharge || 0;
       profit = cash - 109;
-    }
-
-    // 🔥 CASH + BANK
-    else if (service.hasCash && service.hasBank) {
+    } else if (service.hasCash && service.hasBank) {
       profit = cash;
-    }
-
-    // 🔥 CASH ONLY
-    else if (service.hasCash) {
+    } else if (service.hasCash) {
       profit = cash;
     }
   }
 
-  // 🔥 UPDATE VALUES
+  // 🔥 UPDATE ALL FIELDS
   transaction.cashAmount = cash;
   transaction.bankAmount = bank;
+  transaction.splitCash = splitCash;
+  transaction.gpayAmount = gpayAmount;
+  transaction.paymentType = paymentType;
 
   transaction.edistrictAmount = edistrictAmount;
   transaction.psaAmount = psaAmount;
