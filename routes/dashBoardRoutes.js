@@ -84,9 +84,8 @@ router.get("/staff", protect, async (req, res) => {
   const today = new Date();
   const todayStr = today.toISOString().split("T")[0];
 
-  // 🔥 STAFF ONLY TRANSACTIONS
+  // 🔥 ALL TRANSACTIONS (NOT STAFF WISE)
   const tx = await Transaction.find({
-    staffId: req.user.id,
     date: {
       $gte: new Date(todayStr),
       $lt: new Date(new Date(todayStr).setDate(today.getDate() + 1)),
@@ -101,7 +100,7 @@ router.get("/staff", protect, async (req, res) => {
     totalGpay += t.gpayAmount || 0;
   });
 
-  // 🔥 GET FULL REPORT (same as admin)
+  // 🔥 SAME REPORT LOGIC
   const reportRes = await fetch(
     `https://akshaya-backend.vercel.app/api/reports?from=2020-01-01&to=${todayStr}`
   );
@@ -138,5 +137,4 @@ router.get("/staff", protect, async (req, res) => {
     },
   });
 });
-
 export default router;
