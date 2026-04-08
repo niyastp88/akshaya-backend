@@ -13,9 +13,7 @@ router.get("/", async (req, res) => {
   const end = new Date(to);
   end.setDate(end.getDate() + 1);
 
-  // =====================================
-  // 🔥 OPENING BALANCE
-  // =====================================
+  // ================= OPENING =================
   const balance = await Balance.findOne();
 
   let cash = balance?.openingCash || 0;
@@ -24,20 +22,10 @@ router.get("/", async (req, res) => {
   let edistrict = balance?.openingEdistrict || 0;
   let psa = balance?.openingPSA || 0;
 
-  // =====================================
-  // 🔥 APPLY PREVIOUS DATA
-  // =====================================
-  const prevTransactions = await Transaction.find({
-    date: { $lt: start },
-  });
-
-  const prevExpenses = await ExpenseTx.find({
-    date: { $lt: start },
-  });
-
-  const prevBalances = await BalanceTx.find({
-    date: { $lt: start },
-  });
+  // ================= PREVIOUS =================
+  const prevTransactions = await Transaction.find({ date: { $lt: start } });
+  const prevExpenses = await ExpenseTx.find({ date: { $lt: start } });
+  const prevBalances = await BalanceTx.find({ date: { $lt: start } });
 
   const prevAll = [
     ...prevTransactions.map((t) => ({ ...t.toObject(), category: "tx" })),
@@ -49,35 +37,40 @@ router.get("/", async (req, res) => {
 
   prevAll.forEach((item) => {
     if (item.category === "tx") {
-      const cashIn = item.cashAmount || 0;
-      const bankIn = item.bankAmount || 0;
+      cash += (item.cashAmount || 0) + (item.bankAmount || 0);
+      sbiCurrent -= item.bankAmount || 0;
 
-      cash += cashIn + bankIn;
-      sbiCurrent -= bankIn;
       edistrict -= item.edistrictAmount || 0;
-      psa -= item.psaAmount || 0;
-    } else if (item.category === "expense") {
+      psa -= item.psaAmount || 0; // ✅ deduct PSA cost
+    }
+
+    else if (item.category === "expense") {
       cash -= item.amount;
-    } else if (item.category === "balance") {
+    }
+
+    else if (item.category === "balance") {
       if (item.type === "SBI Current Account") {
         cash -= item.amount;
         sbiCurrent += item.amount;
-      } else if (item.type === "SBI Savings Account") {
+      }
+
+      else if (item.type === "SBI Savings Account") {
         cash -= item.amount;
         sbiSavings += item.amount;
-      } else if (item.type === "Edistrict") {
+      }
+
+      else if (item.type === "Edistrict") {
         sbiCurrent -= item.amount;
         edistrict += item.amount;
-      } else if (item.type === "PSA") {
-        sbiCurrent -= item.amount;
-        psa += item.amount;
+      }
+
+      else if (item.type === "PSA") {
+        psa += item.amount; // ✅ wallet add
       }
     }
   });
 
-  // =====================================
-  // 🔥 CURRENT RANGE DATA
-  // =====================================
+  // ================= CURRENT =================
   const transactions = await Transaction.find({
     date: { $gte: start, $lt: end },
   });
@@ -102,111 +95,110 @@ router.get("/", async (req, res) => {
 
   all.sort((a, b) => new Date(a.date) - new Date(b.date));
 
-  // =====================================
-  // 🔥 STEP 1: RUNNING FLOW
-  // =====================================
-  const temp = [];
+  // ================= GROUP =================
+  const grouped = {};
 
   all.forEach((item) => {
     const date = item.date.toISOString().split("T")[0];
 
-    let serviceName = "";
-    let inAmount = 0;
-    let outAmount = 0;
+    let name = "";
+    let cashIn = 0;
+    let bankIn = 0;
+    let out = 0;
+    let ed = 0;
+    let psaAdd = 0;
+    let psaDeduct = 0;
 
-    // ===== TX =====
     if (item.category === "tx") {
-      serviceName = item.serviceName;
+      name = item.serviceName;
 
-      const cashIn = item.cashAmount || 0;
-      const bankIn = item.bankAmount || 0;
+      cashIn = item.cashAmount || 0;
+      bankIn = item.bankAmount || 0;
 
-      inAmount = cashIn + bankIn;
-
-      cash += inAmount;
-      sbiCurrent -= bankIn;
-      edistrict -= item.edistrictAmount || 0;
-      psa -= item.psaAmount || 0;
+      ed = item.edistrictAmount || 0;
+      psaDeduct = item.psaAmount || 0; // ✅ deduct
 
       totalCash += item.splitCash || 0;
       totalGpay += item.gpayAmount || 0;
       totalProfit += item.profit || 0;
     }
 
-    // ===== EXPENSE =====
     else if (item.category === "expense") {
-      serviceName = item.expenseName;
-      outAmount = item.amount;
-
-      cash -= item.amount;
+      name = item.expenseName;
+      out = item.amount;
     }
 
-    // ===== BALANCE =====
     else if (item.category === "balance") {
-      serviceName = item.type;
+      name = item.type;
 
-      if (item.type === "SBI Current Account") {
-        cash -= item.amount;
-        sbiCurrent += item.amount;
-        outAmount = item.amount;
-      } else if (item.type === "SBI Savings Account") {
-        cash -= item.amount;
-        sbiSavings += item.amount;
-        outAmount = item.amount;
-      } else if (item.type === "Edistrict") {
-        sbiCurrent -= item.amount;
-        edistrict += item.amount;
-      } else if (item.type === "PSA") {
-        sbiCurrent -= item.amount;
-        psa += item.amount;
+      if (
+        item.type === "SBI Current Account" ||
+        item.type === "SBI Savings Account"
+      ) {
+        out = item.amount;
+      }
+
+      else if (item.type === "Edistrict") {
+        ed += item.amount;
+      }
+
+      else if (item.type === "PSA") {
+        psaAdd = item.amount; // ✅ add
       }
     }
 
-    temp.push({
-      date,
-      serviceName,
-      in: inAmount,
-      out: outAmount,
+    const key = `${date}_${name}`;
+
+    if (!grouped[key]) {
+      grouped[key] = {
+        date,
+        serviceName: name,
+        cashIn: 0,
+        bankIn: 0,
+        out: 0,
+        ed: 0,
+        psaAdd: 0,
+        psaDeduct: 0,
+      };
+    }
+
+    grouped[key].cashIn += cashIn;
+    grouped[key].bankIn += bankIn;
+    grouped[key].out += out;
+    grouped[key].ed += ed;
+    grouped[key].psaAdd += psaAdd;
+    grouped[key].psaDeduct += psaDeduct;
+  });
+
+  let result = Object.values(grouped);
+
+  result.sort((a, b) => new Date(a.date) - new Date(b.date));
+
+  // ================= FINAL FLOW =================
+  result = result.map((row) => {
+    cash += row.cashIn + row.bankIn;
+    cash -= row.out;
+
+    sbiCurrent -= row.bankIn;
+    edistrict -= row.ed;
+
+    // 🔥 FINAL PSA LOGIC
+    psa += row.psaAdd;
+    psa -= row.psaDeduct;
+
+    return {
+      date: row.date,
+      serviceName: row.serviceName,
+      in: row.cashIn + row.bankIn,
+      out: row.out,
       cashBalance: cash,
       sbiCurrent,
       sbiSavings,
       edistrict,
       psa,
-    });
+    };
   });
 
-  // =====================================
-  // 🔥 STEP 2: GROUP FOR UI
-  // =====================================
-  const grouped = {};
-
-  temp.forEach((row) => {
-    const key = `${row.date}_${row.serviceName}`;
-
-    if (!grouped[key]) {
-      grouped[key] = {
-        ...row,
-        in: 0,
-        out: 0,
-      };
-    }
-
-    grouped[key].in += row.in;
-    grouped[key].out += row.out;
-
-    // 🔥 last balance overwrite
-    grouped[key].cashBalance = row.cashBalance;
-    grouped[key].sbiCurrent = row.sbiCurrent;
-    grouped[key].sbiSavings = row.sbiSavings;
-    grouped[key].edistrict = row.edistrict;
-    grouped[key].psa = row.psa;
-  });
-
-  const result = Object.values(grouped);
-
-  // =====================================
-  // 🔥 RESPONSE
-  // =====================================
   res.json({
     data: result,
     totals: {
