@@ -18,6 +18,13 @@ const attendanceSchema = new mongoose.Schema(
     checkOut: Date,
 
     totalHours: Number, // in hours
+    deviceInfo: {
+  ip: String,
+  browser: String,
+  os: String,
+  device: String,
+  userAgent: String,
+},
   },
   { timestamps: true }
 );

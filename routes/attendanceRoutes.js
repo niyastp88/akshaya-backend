@@ -4,6 +4,24 @@ import { protect } from "../middleware/authMiddleware.js";
 
 const router = express.Router();
 
+const getDeviceInfo = (req) => {
+  const ua = req.headers["user-agent"];
+
+  return {
+    ip: req.ip,
+    userAgent: ua,
+    browser: ua.includes("Chrome") ? "Chrome" : "Other",
+    os: ua.includes("Windows")
+      ? "Windows"
+      : ua.includes("Android")
+      ? "Android"
+      : ua.includes("iPhone")
+      ? "iOS"
+      : "Other",
+    device: ua.includes("Mobile") ? "Mobile" : "Desktop",
+  };
+};
+
 // ================= CHECK IN =================
 router.post("/check-in", protect, async (req, res) => {
   const today = new Date().toISOString().split("T")[0];
@@ -19,11 +37,14 @@ router.post("/check-in", protect, async (req, res) => {
     });
   }
 
+  const deviceInfo = getDeviceInfo(req);
+
   const data = await Attendance.create({
     staffId: req.user.id,
     staffName: req.user.name,
     date: today,
     checkIn: new Date(),
+    deviceInfo, // 🔥 SAVE HERE
   });
 
   res.json(data);
