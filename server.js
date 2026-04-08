@@ -14,6 +14,7 @@ import addBalanceRoutes from "./routes/addBalanceRoutes.js";
 import balanceTxRoutes from "./routes/balanceTxRoutes.js";
 import dashboardRoutes from "./routes/dashBoardRoutes.js";
 import profitRoutes from "./routes/profitRoutes.js";
+import attendanceRoutes from "./routes/attendanceRoutes.js";
 
 dotenv.config();
 connectDB();
@@ -34,6 +35,8 @@ app.use("/api/add-balance", addBalanceRoutes);
 app.use("/api/balance-tx", balanceTxRoutes);
 app.use("/api/dashboard", dashboardRoutes);
 app.use("/api/profit", profitRoutes);
+app.use("/api/attendance", attendanceRoutes);
+
 
 const PORT = process.env.PORT || 5000;
 
